@@ -35,10 +35,9 @@ Inst inst_push(Word operand) {
         .operand = operand,
     };
 }
-Inst inst_plus(Word operand) {
+Inst inst_plus(void) {
     return (Inst) {
-        .type = INST_PLUS, 
-        .operand = operand,
+        .type = INST_PLUS,
     };
 }
 Bm bm = {0}; 
