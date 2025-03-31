@@ -1,3 +1,3 @@
 # VM-in-C
-Attempt at making in VM in C 
+Attempt at making a VM in C 
 Still developing...
