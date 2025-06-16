@@ -261,14 +261,14 @@ void bm_save_program_to_file(Inst *program, size_t program_size, const char *fil
     fclose(f); 
 }
 
-Inst program[] = {
-    MAKE_INST_PUSH(0),  //0
-    MAKE_INST_PUSH(1),  //1
-    MAKE_INST_DUP(1),   //2
-    MAKE_INST_DUP(1),   //3
-    MAKE_INST_PLUS,     //4
-    MAKE_INST_JMP(2),   //5
-};
+// Inst program[] = {
+//     MAKE_INST_PUSH(0),  //0
+//     MAKE_INST_PUSH(1),  //1
+//     MAKE_INST_DUP(1),   //2
+//     MAKE_INST_DUP(1),   //3
+//     MAKE_INST_PLUS,     //4
+//     MAKE_INST_JMP(2),   //5
+// };
 
 // void bm_push_inst(Bm *bm, Inst inst) 
 // {
@@ -311,6 +311,9 @@ void bm_load_program_from_file(Bm *bm, const char * file_path)
         fprintf(stderr, "ERROR: Could not open file '%s': %s\n", file_path, strerror(errno)); 
         exit(1);
     }
+    // char * buffer; 
+    // fread(buffer, sizeof(bm->program[0]), m / sizeof(bm->program[0]), f);
+    // bm_load_program_from_memory(bm, buffer, ARRAY_SIZE(program)); 
     bm->program_size = fread(bm->program, sizeof(bm->program[0]), m / sizeof(bm->program[0]), f);
     if(ferror(f)) {
         fprintf(stderr, "ERROR: Could not open file '%s': %s\n", file_path, strerror(errno)); 
