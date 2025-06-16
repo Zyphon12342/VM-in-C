@@ -84,6 +84,7 @@ typedef enum {
 
 // BM INSTANCE 
 typedef struct {
+    //GOAL SEPERATE SPACE FOR PROGRAM STACK AND MEMORY FOR SECURITY
     Word stack[BM_STACK_CAPACITY];
     //current stack size 
     Word stack_size; 
@@ -330,7 +331,42 @@ Bm bm = {0};
 //     return 0; 
 // }
 
+char* source_code = 
+    "push 0\n"
+    "push 1\n"
+    "dup 1\n"
+    "dup 1\n"
+    "plus\n"
+    "jmp 2\n"; 
+
+size_t bm_translate_source(char *source, size_t source_size,  Inst *program, size_t program_capacity) 
+{
+    while(source_size > 0) {
+        char *end = memchr(source, '\n', source_size); 
+        size_t n = (end != NULL ? (size_t) (end - source) : source_size); 
+        
+        printf("#%.*s#\n", (int) n, source); 
+
+        source = end; 
+        source_size -= n; 
+        if(source != NULL) {
+            source += 1; 
+            source_size -= 1; 
+        }
+    }
+    return 0; 
+}
+
+
 int main(void) 
+{
+    bm.program_size = bm_translate_source(source_code, strlen(source_code), bm.program, BM_PROGRAM_CAPACITY); 
+    // printf("%lld",strlen(source_code)); 
+    return 0; 
+}
+
+
+int main2(void) 
 {
     // bm_load_program_from_memory(&bm, program, ARRAY_SIZE(program)); 
     bm_load_program_from_file(&bm, "./fib.bm"); 
