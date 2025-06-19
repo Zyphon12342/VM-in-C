@@ -7,5 +7,5 @@
 $ make examples 
 
 $ ./bmi ./examples/fib.bm
-
+```
 Still in progress. 
