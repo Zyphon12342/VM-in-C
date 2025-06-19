@@ -3,8 +3,9 @@
 #include <stdint.h>
 #include <assert.h>
 #include <string.h>
-#include<errno.h> 
-
+#include <ctype.h>
+#include <errno.h> 
+//BM SETUP 
 #define BM_EXECUTION_LIMIT 69
 #define BM_STACK_CAPACITY 1024
 #define BM_PROGRAM_CAPACITY 1024
@@ -14,6 +15,7 @@ typedef int64_t Word;
 
 // INST INSTANCE
 typedef enum {
+    INST_NOP = 0, 
     INST_PUSH,
     INST_DUP,
     INST_PLUS, 
@@ -40,7 +42,7 @@ typedef struct {
 #define MAKE_INST_MULT          { .type = INST_MULT}
 #define MAKE_INST_DIV           { .type = INST_DIV}
 #define MAKE_INST_HALT          { .type = INST_HALT, .operand = (addr)}
-
+#define MAKE_INST_NOP           {.type = INST_NOP, .operand = 0} 
 // Inst inst_push(Word operand) {
 //     return (Inst) {
 //         .type = INST_PUSH,
@@ -56,6 +58,7 @@ typedef struct {
 const char *inst_type_as_cstr(Inst_Type type) 
 {
     switch(type) {
+        case INST_NOP:         return "INST_NOP"; 
         case INST_PUSH:        return "INST_PUSH";
         case INST_PLUS:        return "INST_PLUS";
         case INST_MINUS:       return "INST_MINUS";
@@ -125,6 +128,9 @@ Err bm_execute_inst(Bm *bm)
     Inst inst = bm->program[bm->ip];
 
     switch(inst.type) {
+        case INST_NOP: 
+            bm->ip += 1; 
+            break; 
         case INST_PUSH: 
             if(bm->stack_size >= BM_STACK_CAPACITY) {
                 return ERR_STACK_OVERFLOW; 
@@ -294,13 +300,13 @@ void bm_load_program_from_file(Bm *bm, const char * file_path)
         exit(1);
     }
     if (fseek(f,0,SEEK_END) < 0) { // seeks to end of file -1 means error 
-        fprintf(stderr, "ERROR: Could not open file '%s': %s\n", file_path, strerror(errno)); 
+        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno)); 
         exit(1);
     }
 
     long m = ftell(f); //tells position of cursor 
     if(m < 0) {
-        fprintf(stderr, "ERROR: Could not open file '%s': %s\n", file_path, strerror(errno)); 
+        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno)); 
         exit(1);
     }
      // ensures file program and bm program are of same type?
@@ -309,7 +315,7 @@ void bm_load_program_from_file(Bm *bm, const char * file_path)
     assert((size_t) m <= BM_PROGRAM_CAPACITY * sizeof(bm->program[0])); 
     //returning cursor to start of file to read 
     if(fseek(f, 0, SEEK_SET) < 0) { 
-        fprintf(stderr, "ERROR: Could not open file '%s': %s\n", file_path, strerror(errno)); 
+        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno)); 
         exit(1);
     }
     // char * buffer; 
@@ -331,54 +337,182 @@ Bm bm = {0};
 //     return 0; 
 // }
 
-char* source_code = 
-    "push 0\n"
-    "push 1\n"
-    "dup 1\n"
-    "dup 1\n"
-    "plus\n"
-    "jmp 2\n"; 
+// char* source_code = 
+//     "push 0\n"
+//     "push 1\n"
+//     "dup 1\n"
+//     "dup 1\n"
+//     "plus\n"
+//     "jmp 2\n"; 
 
-size_t bm_translate_source(char *source, size_t source_size,  Inst *program, size_t program_capacity) 
+
+// String_View implmenetation 
+
+typedef struct {
+    size_t count; 
+    const char *data; 
+} String_View; 
+
+String_View cstr_as_sv(const char *cstr) 
 {
-    while(source_size > 0) {
-        char *end = memchr(source, '\n', source_size); 
-        size_t n = (end != NULL ? (size_t) (end - source) : source_size); 
-        
-        printf("#%.*s#\n", (int) n, source); 
-
-        source = end; 
-        source_size -= n; 
-        if(source != NULL) {
-            source += 1; 
-            source_size -= 1; 
-        }
-    }
-    return 0; 
+    return (String_View) {
+        .count = strlen(cstr), 
+        .data = cstr, 
+    };
 }
 
 
-int main(void) 
+String_View sv_trim_left(String_View sv) 
 {
-    bm.program_size = bm_translate_source(source_code, strlen(source_code), bm.program, BM_PROGRAM_CAPACITY); 
-    // printf("%lld",strlen(source_code)); 
-    return 0; 
+    size_t i = 0; 
+    while(i < sv.count && isspace(sv.data[i])) {
+        i += 1; 
+    }
+    return (String_View) {
+        .count = sv.count - i,
+        .data = sv.data + i,
+    }; 
+}
+
+String_View sv_trim_right(String_View sv) 
+{
+    size_t i = 0; 
+    while(i < sv.count && isspace(sv.data[sv.count-1-i])) {
+        i += 1; 
+    }
+    return (String_View) {
+        .count = sv.count - i, 
+        .data = sv.data, 
+    }; 
+}
+
+String_View sv_trim(String_View sv)
+{
+    return sv_trim_left(sv_trim_right(sv));
+}
+String_View sv_chop_by_delim(String_View *sv, char delim) 
+{
+    size_t i = 0; 
+    while(i < sv->count && sv->data[i] != delim) {
+        i += 1; 
+    }
+    String_View result =  {
+        .count = i,
+        .data = sv->data,
+    };
+    if(i < sv->count) {
+        sv->count -= i + 1;
+        sv->data += i + 1;
+    } else {
+        sv->count -= i; 
+        sv->data += i; 
+    }
+    return result; 
+}
+
+int sv_eq(String_View a, String_View b) 
+{
+    if(a.count != b.count) {
+        return 0; 
+    }
+    return memcmp(a.data, b.data, a.count) == 0;
+}
+
+int sv_to_int(String_View sv) 
+{
+    int result = 0; 
+
+    for(size_t i = 0; i < sv.count && isdigit(sv.data[i]); i++) {
+        result = result * 10 + sv.data[i] - '0'; 
+        i += 1; 
+    }
+    return result;
+}
+
+char *trim_left(char *str, size_t str_size) 
+{
+    for(size_t i = 0; i < str_size; i++) {
+        if(!isspace(str[i])) {
+            return str + i; 
+        }
+    }
+    return str + str_size; 
 }
 
 
-int main2(void) 
+
+Inst bm_translate_line(String_View line) 
 {
-    // bm_load_program_from_memory(&bm, program, ARRAY_SIZE(program)); 
-    bm_load_program_from_file(&bm, "./fib.bm"); 
-    bm_dump_stack(stdout, &bm); 
-    for(size_t i = 0; i < BM_EXECUTION_LIMIT && !bm.halt; i++) { 
-        Err err = bm_execute_inst(&bm);
-        bm_dump_stack(stdout, &bm); 
-        if(err != ERR_OK) {
-            fprintf(stderr, "Error: %s\n", Err_as_cstr(err)); 
-            exit(1); 
-        }
+    line = sv_trim_left(line); 
+    String_View inst_name = sv_chop_by_delim(&line, ' '); 
+    if(sv_eq(inst_name, cstr_as_sv("push"))) {
+        line = sv_trim_left(line); 
+        int operand = sv_to_int(sv_trim_right(line));
+        return (Inst) { .type = INST_PUSH, .operand = operand}; 
+    } else if(sv_eq(inst_name, cstr_as_sv("dup"))) {
+        line = sv_trim_left(line); 
+        int operand = sv_to_int(sv_trim_right(line));
+        return (Inst) { .type = INST_DUP, .operand = operand}; 
+    } else if(sv_eq(inst_name, cstr_as_sv("plus"))) {
+        return (Inst) { .type = INST_PLUS }; 
+    } else if(sv_eq(inst_name, cstr_as_sv("jmp"))) {
+        line = sv_trim_left(line); 
+        int operand = sv_to_int(sv_trim_right(line));
+        return (Inst) { .type = INST_JMP, .operand = operand}; 
+    } else {
+        fprintf(stderr, "ERROR: Unknown instruction '%.*s'\n", (int) inst_name.count, inst_name.data); 
+        exit(1); 
     }
-    // bm_dump_stack(stdout, &bm);
-    return 0; 
-}   
+}
+
+size_t bm_translate_source(String_View source,  Inst *program, size_t program_capacity) 
+{
+    size_t program_size = 0; 
+    while(source.count > 0) {
+        assert(program_size < program_capacity);
+        String_View line = sv_chop_by_delim(&source, '\n'); 
+        if(line.count > 0) {
+            program[program_size++] = bm_translate_line(line);
+        }
+        printf("#%.*s#\n", (int) line.count, line.data);
+    }
+    return program_size; 
+}
+
+String_View slurp_file(const char *file_path) 
+{
+    FILE *f = fopen(file_path, "r"); 
+    if(f == NULL) {
+        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno)); 
+        exit(1);
+    }
+    if (fseek(f,0,SEEK_END) < 0) { // seeks to end of file -1 means error 
+        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno)); 
+        exit(1);
+    }
+
+    long m = ftell(f); //tells position of cursor 
+    if(m < 0) {
+        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno)); 
+        exit(1);
+    }
+    char *buffer = malloc(m); 
+    if(buffer == NULL) {
+        fprintf(stderr, "ERROR: Could not allocate memory for file '%s': %s\n", file_path, strerror(errno)); 
+        exit(1);
+    }
+    if(fseek(f, 0, SEEK_SET) < 0) { 
+        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno)); 
+        exit(1);
+    }
+    size_t n = fread(buffer, 1, m, f); 
+    if(ferror(f)) {
+        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno)); 
+        exit(1);
+    }
+    fclose(f); 
+    return (String_View) {
+        .count = n,
+        .data = buffer, 
+    }; 
+}
